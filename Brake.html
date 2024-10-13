@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Car Braking Simulation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: #e0e0e0;
+        }
+        #controls {
+            text-align: center;
+            padding: 10px;
+            background-color: #f4f4f4;
+            border-bottom: 2px solid #ccc;
+        }
+        #simulationCanvas {
+            display: block;
+            margin: 0 auto;
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+
+<div id="controls">
+    <label for="initialVelocity">Initial Velocity (m/s): </label>
+    <input type="number" id="initialVelocity" min="1" placeholder="Enter initial velocity">
+    <label for="finalVelocity">Final Velocity (m/s): </label>
+    <input type="number" id="finalVelocity" min="0" placeholder="Enter final velocity">
+    <label for="deceleration">Deceleration (m/s²): </label>
+    <input type="number" id="deceleration" min="0.1" placeholder="Enter deceleration">
+    <br><br>
+    <button onclick="setRoadCondition('dry')">Dry Road</button>
+    <button onclick="setRoadCondition('wet')">Wet Road</button>
+    <button onclick="setRoadCondition('icy')">Icy Road</button>
+    <button onclick="startDeceleration()">Start Braking</button>
+    <button onclick="stopDeceleration()">Stop</button>
+    <button onclick="resetSimulation()">Reset</button>
+    <button onclick="changeCameraAngle()">Change Camera Angle</button>
+</div>
+
+<canvas id="simulationCanvas" width="800" height="400"></canvas>
+
+<script>
+    const canvas = document.getElementById('simulationCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let initialVelocity;
+    let finalVelocity;
+    let deceleration;
+    let currentVelocity;
+    let carX = 50;
+    let decelerating = false;
+    let totalTime = 0;
+    let distance = 0;
+    let roadCondition = 'dry';
+    let newDistance = 0;
+
+    const carWidth = 60;
+    const carHeight = 40;
+    const roadWidth = 100;
+
+    let cameraAngle = 0;
+
+    function drawRoad() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#808080";
+        ctx.fillRect(0, canvas.height / 2, canvas.width, roadWidth);
+        drawTrees();
+        drawCar();
+    }
+
+    function drawTrees() {
+        for (let i = 0; i < 10; i++) {
+            const x = i * 150 + 50;
+            const treeTrunkHeight = 40;
+            const treeTrunkWidth = 10;
+            const treeHeight = 30;
+            ctx.fillStyle = "#8B4513";
+            ctx.fillRect(x, canvas.height / 2 - treeTrunkHeight, treeTrunkWidth, treeTrunkHeight);
+            ctx.beginPath();
+            ctx.arc(x + treeTrunkWidth / 2, canvas.height / 2 - treeTrunkHeight - treeHeight / 2, treeHeight, 0, Math.PI * 2);
+            ctx.fillStyle = "green";
+            ctx.fill();
+        }
+    }
+
+    function drawCar() {
+        ctx.fillStyle = "#0000FF";
+        ctx.fillRect(carX, canvas.height / 2 - 40, carWidth, carHeight);
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.arc(carX + 15, canvas.height / 2 - 5, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(carX + 45, canvas.height / 2 - 5, 10, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function setRoadCondition(condition) {
+        roadCondition = condition;
+        if (condition === 'dry') {
+            document.body.style.backgroundColor = "#e0e0e0";
+            deceleration = parseFloat(document.getElementById('deceleration').value);
+        } else if (condition === 'wet') {
+            document.body.style.backgroundColor = "#b0c4de";
+            deceleration = parseFloat(document.getElementById('deceleration').value) * 0.7;
+        } else if (condition === 'icy') {
+            document.body.style.backgroundColor = "#ffffff";
+            deceleration = parseFloat(document.getElementById('deceleration').value) * 0.3;
+        }
+        drawRoad();
+    }
+
+    function startDeceleration() {
+        initialVelocity = parseFloat(document.getElementById('initialVelocity').value);
+        finalVelocity = parseFloat(document.getElementById('finalVelocity').value);
+        currentVelocity = initialVelocity;
+        decelerating = true;
+        totalTime = 0;
+        distance = 0;
+        newDistance = 0;
+        carX = 50;
+
+        update();
+    }
+
+    function stopDeceleration() {
+        decelerating = false;
+    }
+
+    function resetSimulation() {
+        carX = 50;
+        currentVelocity = initialVelocity;
+        distance = 0;
+        decelerating = false;
+        totalTime = 0;
+        newDistance = 0;
+        drawRoad();
+    }
+
+    function update() {
+        if (decelerating && currentVelocity > finalVelocity) {
+            const timeStep = 0.01; // Smaller time step for more precision
+
+            // Update velocity
+            currentVelocity = Math.max(currentVelocity - deceleration * timeStep, finalVelocity);
+
+            // Calculate precise distance incrementally
+            distance += currentVelocity * timeStep;
+
+            // Track total time
+            totalTime += timeStep;
+
+            // Move car
+            carX += ((initialVelocity + currentVelocity) / 2) * timeStep;
+
+            if (carX > canvas.width) {
+                carX = -60;
+            }
+
+            if (currentVelocity <= finalVelocity) {
+                decelerating = false;
+                alert(`Braking Complete! 
+                Distance traveled: ${(initialVelocity * totalTime - 0.5 * deceleration * totalTime * totalTime).toFixed(2)} meters
+                Time taken: ${totalTime.toFixed(2)} seconds.`);
+            }
+        }
+
+        drawRoad();
+        requestAnimationFrame(update);
+    }
+
+    function changeCameraAngle() {
+        cameraAngle = (cameraAngle + 1) % 3;
+        alert(`Camera angle changed: ${cameraAngle === 0 ? 'Side View' : cameraAngle === 1 ? 'Top-Down View' : 'Chase View'}`);
+    }
+
+    drawRoad();
+</script>
+
+</body>
+</html>

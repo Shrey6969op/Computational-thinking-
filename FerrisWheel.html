@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic 3D Ferris Wheel Simulator</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            width: 250px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #formulaButton {
+            position: absolute;
+            bottom: 50px;
+            left: 10px;
+            z-index: 10;
+        }
+        #physicsInfo {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            width: 300px;
+            height: auto;
+            font-size: 14px;
+            overflow-y: auto;
+            border-radius: 8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label for="speed">Rotation Speed (Radians/sec): </label>
+        <input type="range" id="speed" min="0" max="10" step="0.1" value="1">
+        <span id="speedValue">1</span>
+        <br><br>
+        <label for="wind">Wind Speed (m/s): </label>
+        <input type="range" id="wind" min="0" max="10" step="0.1" value="0">
+        <span id="windValue">0</span>
+        <br><br>
+        <input type="checkbox" id="enableWind"> Enable Wind
+        <br><br>
+        <p id="warning" style="color: red; font-weight: bold;"></p>
+    </div>
+
+    <button id="formulaButton">Toggle Formula Sheet</button>
+
+    <div id="physicsInfo">
+        <h3>Physics Concepts:</h3>
+        <ul>
+            <li><b>Circular Motion</b>: The continuous change in direction of the seats as they rotate around the wheel.</li>
+            <li><b>Angular Velocity</b>: The rate at which the wheel spins, controlled by the user.</li>
+            <li><b>Centrifugal Force</b>: A force that pushes the seats outward as the wheel rotates, increasing with speed.</li>
+            <li><b>Gravity</b>: A constant downward force acting on the seats, causing tension in the poles.</li>
+            <li><b>Tension</b>: The force in the poles that holds the seats, countering centrifugal force and gravity.</li>
+            <li><b>Torque</b>: The turning effect that drives the Ferris wheel’s rotation.</li>
+            <li><b>Wind Force</b>: A lateral force caused by wind, pushing the seats sideways and affecting equilibrium.</li>
+        </ul>
+    </div>
+
+    <canvas id="ferrisWheelCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('ferrisWheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const speedInput = document.getElementById('speed');
+        const speedValue = document.getElementById('speedValue');
+        const windInput = document.getElementById('wind');
+        const windValue = document.getElementById('windValue');
+        const enableWindCheckbox = document.getElementById('enableWind');
+        const warningText = document.getElementById('warning');
+        const formulaButton = document.getElementById('formulaButton');
+        const physicsInfo = document.getElementById('physicsInfo');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Toggle Formula Sheet
+        formulaButton.addEventListener('click', () => {
+            physicsInfo.style.display = (physicsInfo.style.display === 'none') ? 'block' : 'none';
+        });
+
+        // Wheel configuration
+        const wheel = {
+            radius: 200,
+            centerX: canvas.width / 2,
+            centerY: canvas.height / 2 - 100,  // Adjusted for a standing appearance
+            seatDistanceFromCenter: 180,
+            seatRadius: 10,
+            numSeats: 10,
+            speed: 1,
+            angle: 0,
+            maxSpeed: 5,
+        };
+
+        // Environment configuration
+        const environment = {
+            shops: [
+                { x: canvas.width / 4, y: canvas.height - 100 },
+                { x: 3 * canvas.width / 4, y: canvas.height - 100 }
+            ],
+            trees: [
+                { x: 100, y: canvas.height - 100 },
+                { x: canvas.width - 150, y: canvas.height - 120 },
+                { x: 300, y: canvas.height - 80 },
+                { x: canvas.width - 350, y: canvas.height - 90 }
+            ]
+        };
+
+        // Physics properties
+        const gravity = 9.81;
+        let windSpeed = 0;
+        let windEnabled = false;
+
+        // Seat positions and physics vectors
+        function getSeatPosition(seatIndex) {
+            const angleOffset = (2 * Math.PI / wheel.numSeats) * seatIndex;
+            const x = wheel.centerX + wheel.seatDistanceFromCenter * Math.cos(wheel.angle + angleOffset);
+            const y = wheel.centerY + wheel.seatDistanceFromCenter * Math.sin(wheel.angle + angleOffset);
+            return { x, y };
+        }
+
+        function drawWheel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Ferris wheel structure
+            ctx.beginPath();
+            ctx.arc(wheel.centerX, wheel.centerY, wheel.radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw seats and poles
+            for (let i = 0; i < wheel.numSeats; i++) {
+                const seatPos = getSeatPosition(i);
+
+                // Draw pole
+                ctx.beginPath();
+                ctx.moveTo(wheel.centerX, wheel.centerY);
+                ctx.lineTo(seatPos.x, seatPos.y);
+                ctx.strokeStyle = 'gray';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw seat
+                ctx.beginPath();
+                ctx.arc(seatPos.x, seatPos.y, wheel.seatRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = 'blue';
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // Ground Base
+            ctx.fillStyle = 'darkgray';
+            ctx.fillRect(wheel.centerX - wheel.radius, wheel.centerY + wheel.radius, wheel.radius * 2, 20);
+
+            // Draw vectors on one seat (index 0)
+            const seatPos = getSeatPosition(0);
+            const centrifugalForce = wheel.speed ** 2 * wheel.seatDistanceFromCenter;
+            const windForce = windEnabled ? windSpeed * 5 : 0; 
+            const vectorLength = centrifugalForce * 10;
+
+            // Gravity Vector
+            ctx.beginPath();
+            ctx.moveTo(seatPos.x, seatPos.y);
+            ctx.lineTo(seatPos.x, seatPos.y + gravity * 10);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillText('Gravity', seatPos.x + 5, seatPos.y + gravity * 10 + 15);
+
+            // Centrifugal Force Vector
+            ctx.beginPath();
+            ctx.moveTo(seatPos.x, seatPos.y);
+            ctx.lineTo(seatPos.x + vectorLength * Math.cos(wheel.angle), seatPos.y + vectorLength * Math.sin(wheel.angle));
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillText('Centrifugal Force', seatPos.x + vectorLength * Math.cos(wheel.angle) + 5, seatPos.y + vectorLength * Math.sin(wheel.angle) + 15);
+
+            // Wind Force Vector
+            if (windEnabled) {
+                ctx.beginPath();
+                ctx.moveTo(seatPos.x, seatPos.y);
+                ctx.lineTo(seatPos.x + windForce * 10, seatPos.y);
+                ctx.strokeStyle = 'green';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillText('Wind Force', seatPos.x + windForce * 10 + 5, seatPos.y + 5);
+            }
+        }
+
+        // Draw the environment (shops,trees)
+        function drawEnvironment() {
+            // Draw candy shops
+            environment.shops.forEach(shop => {
+                ctx.fillStyle = 'pink';
+                ctx.fillRect(shop.x, shop.y, 80, 60);
+                ctx.fillStyle = 'black';
+                ctx.fillText('Candy Shop', shop.x + 10, shop.y + 30);
+            });
+
+            // Draw trees
+            environment.trees.forEach(tree => {
+                ctx.fillStyle = 'brown';
+                ctx.fillRect(tree.x + 15, tree.y, 20, 40); // Tree trunk
+                ctx.beginPath();
+                ctx.arc(tree.x + 25, tree.y, 30, 0, 2 * Math.PI); // Tree leaves
+                ctx.fillStyle = 'green';
+                ctx.fill();
+            });
+        }
+
+        // Animation loop
+        function update() {
+            const maxCentrifugalForce = wheel.speed ** 2 * wheel.seatDistanceFromCenter;
+            if (maxCentrifugalForce > 150) {
+                warningText.textContent = 'Warning: Speed too high! Passengers may fall!';
+            } else {
+                warningText.textContent = '';
+            }
+
+            // Update the wheel's angle for rotation
+            wheel.angle += wheel.speed / 100;
+
+            // Draw everything
+            drawWheel();
+            drawEnvironment();
+
+            requestAnimationFrame(update);
+        }
+
+        // Event Listeners
+        speedInput.addEventListener('input', () => {
+            wheel.speed = parseFloat(speedInput.value);
+            speedValue.textContent = speedInput.value;
+        });
+
+        windInput.addEventListener('input', () => {
+            windSpeed = parseFloat(windInput.value);
+            windValue.textContent = windInput.value;
+        });
+
+        enableWindCheckbox.addEventListener('change', () => {
+            windEnabled = enableWindCheckbox.checked;
+        });
+
+        // Start the animation loop
+        update();
+    </script>
+</body>
+</html>

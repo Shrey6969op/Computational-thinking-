@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pendulum Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: white;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+        #controls {
+            margin-bottom: 10px;
+        }
+        #toggleSheet {
+            margin-top: 20px;
+        }
+        #physicsSheet {
+            display: none;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 300px;
+            background-color: #f4f4f4;
+            border: 1px solid black;
+            padding: 10px;
+            z-index: 10;
+        }
+        #energyDisplay {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 800px;
+            margin-top: 10px;
+        }
+        .bar {
+            width: 300px;
+            height: 20px;
+            background-color: lightgray;
+            border: 1px solid black;
+            position: relative;
+        }
+        .bar .fill {
+            height: 100%;
+            background-color: green;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label for="oscillations">Number of Oscillations:</label>
+        <input type="number" id="oscillations" value="10" min="1" step="1">
+        <label for="theta">Initial Angle (Theta in degrees):</label>
+        <input type="number" id="theta" value="45" min="1" max="90">
+        <label for="length">Pendulum Length (meters):</label>
+        <input type="number" id="length" value="200" min="50" max="300">
+        <label for="gravity">Gravitational Acceleration (g in m/s²):</label>
+        <input type="number" id="gravity" value="9.81" min="1" max="20">
+        <label for="airResistance">Air Resistance:</label>
+        <input type="range" id="airResistance" min="0" max="0.1" step="0.01" value="0.05">
+        <button onclick="startPendulum()">Start Pendulum</button>
+        <button id="toggleSheet" onclick="togglePhysicsSheet()">Toggle Physics Sheet</button>
+    </div>
+
+    <canvas id="pendulumCanvas" width="800" height="600"></canvas>
+
+    <div id="energyDisplay">
+        <div><strong>Kinetic Energy</strong>
+            <div class="bar"><div id="keBar" class="fill" style="width: 0%;"></div></div>
+        </div>
+        <div><strong>Potential Energy</strong>
+            <div class="bar"><div id="peBar" class="fill" style="width: 0%;"></div></div>
+        </div>
+    </div>
+
+    <div id="physicsSheet">
+        <h3>Pendulum Physics Concepts</h3>
+        <p><strong>Factors Affecting Oscillations:</strong></p>
+        <ul>
+            <li>Length of the pendulum: Longer pendulums have longer oscillation periods.</li>
+            <li>Gravitational acceleration (g): Affects the oscillation speed. On Earth, it's about 9.81 m/s².</li>
+            <li>Initial angle (Theta): Larger initial angles result in longer swings.</li>
+        </ul>
+        <p><strong>Time Taken to Complete One Oscillation:</strong></p>
+        <p>For small angles, the time period (T) of a pendulum is given by the formula: <br><strong>T = 2π √(L/g)</strong></p>
+        <p><strong>Forces Acting on the Pendulum:</strong></p>
+        <ul>
+            <li><strong>Gravity:</strong> Always pulling the bob downward.</li>
+            <li><strong>Tension:</strong> The force along the string, pulling the bob back to the origin.</li>
+            <li><strong>Air Resistance:</strong> Acts against the motion of the bob, causing it to slow down.</li>
+        </ul>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("pendulumCanvas");
+        const ctx = canvas.getContext("2d");
+
+        let length = 200; // Length of the pendulum
+        let gravity = 9.81; // Gravitational constant
+        let airResistance = 0.05; // Air resistance factor
+        let angle = Math.PI / 4; // Initial angle (45 degrees)
+        let angularVelocity = 0; // Initial angular velocity
+        let angularAcceleration = 0; // Angular acceleration
+        const origin = { x: canvas.width / 2, y: 100 }; // Origin of the pendulum
+        const bobRadius = 20; // Radius of the pendulum bob
+        const timeStep = 0.03; // Time step for simulation
+        let totalOscillations = 0; // Count the total oscillations
+        let maxOscillations = 10; // User-defined number of oscillations
+        let isSwinging = false; // Control the animation
+        let lastDirection = 0; // Track the pendulum's direction
+
+        const bobMass = 5; // Mass of the pendulum bob in kg
+
+        function calculateAngularAcceleration(theta) {
+            return (-gravity / length) * Math.sin(theta); // Simple pendulum equation
+        }
+
+        function calculateKineticEnergy() {
+            const velocity = length * angularVelocity; // Linear velocity
+            return 0.5 * bobMass * velocity * velocity;
+        }
+
+        function calculatePotentialEnergy() {
+            const height = length * (1 - Math.cos(angle)); // Height of the bob
+            return bobMass * gravity * height;
+        }
+
+        function updatePendulum() {
+            angularAcceleration = calculateAngularAcceleration(angle);
+            angularVelocity += angularAcceleration * timeStep;
+            angularVelocity *= (1 - airResistance); // Apply air resistance
+            angle += angularVelocity * timeStep;
+
+            // Prevent pendulum from making a full circle by clamping the angle
+            if (angle > Math.PI / 2) angle = Math.PI / 2;
+            if (angle < -Math.PI / 2) angle = -Math.PI / 2;
+
+            // Check when the pendulum passes the vertical line (center) to count oscillations
+            if (angularVelocity < 0 && lastDirection >= 0) {
+                totalOscillations += 1; // One full oscillation when it swings back
+            }
+            lastDirection = angularVelocity;
+
+            // Update the energy bars
+            const ke = calculateKineticEnergy();
+            const pe = calculatePotentialEnergy();
+            const totalEnergy = ke + pe;
+
+            document.getElementById("keBar").style.width = `${(ke / totalEnergy) * 100}%`;
+            document.getElementById("peBar").style.width = `${(pe / totalEnergy) * 100}%`;
+        }
+
+        function drawPendulum() {
+            const bobX = origin.x + length * Math.sin(angle);
+            const bobY = origin.y + length * Math.cos(angle);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+            ctx.beginPath();
+            ctx.moveTo(origin.x, origin.y);
+            ctx.lineTo(bobX, bobY); // Draw the rod
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(bobX, bobY, bobRadius, 0, Math.PI * 2); // Draw the bob
+            ctx.fillStyle = "red";
+            ctx.fill();
+        }
+
+        function animate() {
+            if (isSwinging && totalOscillations < maxOscillations) {
+                updatePendulum();
+                drawPendulum();
+                requestAnimationFrame(animate); // Request the next animation frame
+            } else {
+                isSwinging = false; // Stop the animation when oscillations are done
+            }
+        }
+
+        function startPendulum() {
+            // Reset variables for a fresh start
+            const thetaInput = parseInt(document.getElementById("theta").value);
+            angle = (thetaInput * Math.PI) / 180; // Convert degrees to radians
+            length = parseInt(document.getElementById("length").value); // User-defined length
+            gravity = parseFloat(document.getElementById("gravity").value); // User-defined gravity
+            airResistance = parseFloat(document.getElementById("airResistance").value); // User-defined air resistance
+            maxOscillations = parseInt(document.getElementById("oscillations").value); // User-defined number of oscillations
+            totalOscillations = 0; // Reset oscillation count
+            isSwinging = true; // Start the pendulum swing
+
+            animate(); // Start the animation loop
+        }
+
+        // Toggle the physics sheet
+        function togglePhysicsSheet() {
+            const sheet = document.getElementById("physicsSheet");
+            sheet.style.display = sheet.style.display === "none" ? "block" : "none";
+        }
+
+        // Function to draw vector lines representing forces
+        function drawForces(bobX, bobY) {
+            const tensionX = -length * Math.sin(angle);
+            const tensionY = -length * Math.cos(angle);
+            const tensionMagnitude = Math.sqrt(tensionX * tensionX + tensionY * tensionY);
+
+            const gravityX = 0;
+            const gravityY = bobMass * gravity;
+
+            const airResistanceX = -airResistance * angularVelocity * length * Math.sin(angle);
+            const airResistanceY = -airResistance * angularVelocity * length * Math.cos(angle);
+
+            // Drawing the forces
+            ctx.beginPath();
+            ctx.moveTo(bobX, bobY);
+            ctx.lineTo(bobX + tensionX / 10, bobY + tensionY / 10); // Tension vector
+            ctx.strokeStyle = "blue";
+            ctx.stroke();
+            ctx.fillText("Tension", bobX + tensionX / 10, bobY + tensionY / 10);
+
+            ctx.beginPath();
+            ctx.moveTo(bobX, bobY);
+            ctx.lineTo(bobX + gravityX / 10, bobY + gravityY / 10); // Gravity vector
+            ctx.strokeStyle = "green";
+            ctx.stroke();
+            ctx.fillText("Gravity", bobX + gravityX / 10, bobY + gravityY / 10);
+
+            ctx.beginPath();
+            ctx.moveTo(bobX, bobY);
+            ctx.lineTo(bobX + airResistanceX / 10, bobY + airResistanceY / 10); // Air resistance vector
+            ctx.strokeStyle = "red";
+            ctx.stroke();
+            ctx.fillText("Air Resistance", bobX + airResistanceX / 10, bobY + airResistanceY / 10);
+        }
+
+        function drawPendulum() {
+            const bobX = origin.x + length * Math.sin(angle);
+            const bobY = origin.y + length * Math.cos(angle);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+            ctx.beginPath();
+            ctx.moveTo(origin.x, origin.y);
+            ctx.lineTo(bobX, bobY); // Draw the rod
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(bobX, bobY, bobRadius, 0, Math.PI * 2); // Draw the bob
+            ctx.fillStyle = "red";
+            ctx.fill();
+
+            drawForces(bobX, bobY); // Draw the force vectors
+        }
+
+        function animate() {
+            if (isSwinging && totalOscillations < maxOscillations) {
+                updatePendulum();
+                drawPendulum();
+                requestAnimationFrame(animate); // Request the next animation frame
+            } else {
+                isSwinging = false; // Stop the animation when oscillations are done
+            }
+        }
+
+        function startPendulum() {
+            // Reset variables for a fresh start
+            const thetaInput = parseInt(document.getElementById("theta").value);
+            angle = (thetaInput * Math.PI) / 180; // Convert degrees to radians
+            length = parseInt(document.getElementById("length").value); // User-defined length
+            gravity = parseFloat(document.getElementById("gravity").value); // User-defined gravity
+            airResistance = parseFloat(document.getElementById("airResistance").value); // User-defined air resistance
+            maxOscillations = parseInt(document.getElementById("oscillations").value); // User-defined number of oscillations
+            totalOscillations = 0; // Reset oscillation count
+            isSwinging = true; // Start the pendulum swing
+
+            animate(); // Start the animation loop
+        }
+
+        // Function to toggle the physics sheet
+        function togglePhysicsSheet() {
+            const sheet = document.getElementById("physicsSheet");
+            sheet.style.display = sheet.style.display === "none" ? "block" : "none";
+        }
+
+        // Function to draw vector lines representing forces
+        function drawForces(bobX, bobY) {
+            const tensionX = -length * Math.sin(angle);
+            const tensionY = -length * Math.cos(angle);
+            const tensionMagnitude = Math.sqrt(tensionX * tensionX + tensionY * tensionY);
+
+            const gravityX = 0;
+            const gravityY = bobMass * gravity;
+
+            const airResistanceX = -airResistance * angularVelocity * length * Math.sin(angle);
+            const airResistanceY = -airResistance * angularVelocity * length * Math.cos(angle);
+
+            // Drawing the forces
+            ctx.beginPath();
+            ctx.moveTo(bobX, bobY);
+            ctx.lineTo(bobX + tensionX / 10, bobY + tensionY / 10); // Tension vector
+            ctx.strokeStyle = "blue";
+            ctx.stroke();
+            ctx.fillText("Tension", bobX + tensionX / 10, bobY + tensionY / 10);
+
+            ctx.beginPath();
+            ctx.moveTo(bobX, bobY);
+            ctx.lineTo(bobX + gravityX / 10, bobY + gravityY / 10); // Gravity vector
+            ctx.strokeStyle = "green";
+            ctx.stroke();
+            ctx.fillText("Gravity", bobX + gravityX / 10, bobY + gravityY / 10);
+
+            ctx.beginPath();
+            ctx.moveTo(bobX, bobY);
+            ctx.lineTo(bobX + airResistanceX / 10, bobY + airResistanceY / 10); // Air resistance vector
+            ctx.strokeStyle = "red";
+            ctx.stroke();
+            ctx.fillText("Air Resistance", bobX + airResistanceX / 10, bobY + airResistanceY / 10);
+        }
+    </script>
+</body>
+</html>
